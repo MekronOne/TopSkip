@@ -1,0 +1,31 @@
+{
+  "manifest_version": 2,
+  "name": "TopSkip",
+  "version": "2.0",
+  "description": "Автоматическая оценка уроков в journal Top Academy",
+  "permissions": [
+    "storage",
+    "https://journal.top-academy.ru/*"
+  ],
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "Auto Rate",
+    "default_icon": {
+      "16": "TopSkip.png",
+      "48": "TopSkip.png",
+      "128": "TopSkip.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://journal.top-academy.ru/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "TopSkip.png",
+    "48": "TopSkip.png",
+    "128": "TopSkip.png"
+  }
+}

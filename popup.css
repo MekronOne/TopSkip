@@ -1,0 +1,269 @@
+* {
+box-sizing: border-box;
+margin: 0;
+padding: 0;
+}
+
+:root {
+    --bg: #141412;
+    --surface: #1e1e1b;
+    --border: #2e2c26;
+    --border-strong: #423f37;
+    --text: #e6e5e0;
+    --text-muted: #8e8b82;
+/*    --accent: #52755e; */
+    --accent-soft: #1d2b21;
+    --danger: #cf6644;
+    --radius: 6px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    background: var(--bg);
+    width: 300px;
+    -webkit-font-smoothing: antialiased;
+}
+
+.app {
+    padding: 16px;
+}
+
+.header {
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.title {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--text);
+}
+
+.subtitle {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.section {
+    margin-bottom: 14px;
+}
+
+.label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 6px;
+}
+
+/* Контейнер для звезд (разворачиваем справа налево) */
+.rating-group {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    gap: 4px;
+}
+
+/* Полностью скрываем радиокнопки, чтобы они не занимали место */
+.rating-group input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+/* Сбрасываем старый прямоугольный дизайн кнопок, оставляя только контейнер для SVG */
+.rating-btn {
+    cursor: pointer;
+    user-select: none;
+    padding: 0;
+    background: none;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Убираем ховер-эффект старой прямоугольной рамки */
+.rating-btn:hover {
+    background: none;
+    border: none;
+}
+
+/* Изначальный вид звезд (белые внутри, серый контур) */
+.rating-btn svg {
+    width: 42px;  /* Фиксируем ширину под размеры полигона */
+    height: 42px; /* Фиксируем высоту под размеры полигона */
+}
+
+.rating-btn svg polygon {
+    stroke: #dddedf;
+    stroke-width: 2;
+    fill: #ffffff; /* Белый цвет изначально */
+    transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+/* ========================================================
+ *   МАГИЯ ОКРАШИВАНИЯ (при выборе и наведении)
+ *   ======================================================== */
+
+/* 1. Красим выбранную звезду и все ПРЕДЫДУЩИЕ перед ней */
+.rating-group input[type="radio"]:checked ~ .rating-btn svg polygon {
+    fill: #f4d47d;
+    stroke: #dedfe0;
+}
+
+/* 2. Красим звезду, на которую НАВЕДЕН курсор */
+.rating-group .rating-btn:hover svg polygon {
+    fill: #f4d47d;
+    stroke: #dedfe0;
+}
+
+/* 3. Красим все ПРЕДЫДУЩИЕ звезды при наведении на текущую */
+.rating-group .rating-btn:hover ~ .rating-btn svg polygon {
+    fill: #f4d47d;
+    stroke: #dedfe0;
+}
+
+
+.rating-group input[type="radio"]:checked + .rating-btn {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+}
+
+.toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.toggle-row input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 15px;
+    height: 15px;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    background: var(--surface);
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: all 0.12s ease;
+}
+
+.toggle-row input[type="checkbox"]:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.toggle-row input[type="checkbox"]:checked::after {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 4px;
+    height: 8px;
+    border: solid #fff;
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+}
+
+.toggle-label {
+    font-size: 13px;
+    color: var(--text);
+}
+
+textarea {
+    width: 100%;
+    padding: 8px 10px;
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    resize: vertical;
+    transition: border-color 0.12s ease;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+textarea:disabled {
+    background: var(--bg);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.footer {
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+
+.status.disabled .status-dot {
+    background: var(--text-muted);
+}
+/* Прячем стандартные радиокнопки */
+.rating-group input[type="radio"] {
+    display: none;
+}
+
+/* Контейнер разворачиваем справа налево */
+.rating-group {
+    display: inline-flex;
+    flex-direction: row-reverse; /* Важно для подсветки предыдущих звезд */
+}
+
+/* Начальный вид звезд: серый контур, белый/прозрачный фон */
+.rating-btn svg polygon {
+    stroke: #dddedf;
+    stroke-width: 2;
+    fill: #ffffff; /* Белые внутри */
+    cursor: pointer;
+    transition: fill 0.2s ease, stroke 0.2s ease;
+}
+
+/* Подсветка желтым при наведении и для выбранного инпута */
+.rating-group input[type="radio"]:checked ~ .rating-btn svg polygon,
+.rating-group .rating-btn:hover svg polygon,
+.rating-group .rating-btn:hover ~ .rating-btn svg polygon {
+    fill: #ffc107;   /* Желтый цвет */
+    stroke: #ffb300; /* Темно-желтый контур */
+}
+
