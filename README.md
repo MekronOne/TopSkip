@@ -1,2 +1,4 @@
 # TopSkip
+![TopSkip](TopSkip.png)
+---
 Автоматическая оценка уроков в Journal Top Academy. Еще находится в разработке и сыроват
