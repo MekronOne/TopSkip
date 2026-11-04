@@ -2,61 +2,61 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <title>Top Skip</title>
     <link rel="stylesheet" href="popup.css">
 </head>
 <body>
     <div class="app">
         <div class="header">
-            <div class="title">Auto Rate</div>
+            <div class="title">Top Skip</div>
             <div class="subtitle">Top Academy</div>
         </div>
 
-<div class="section">
-    <div class="label">Оценка</div>
-    <div class="rating-group">
-        <!-- Порядок: input, затем label -->
-        <input type="radio" name="rating" id="r1" value="1">
-        <label for="r1" class="rating-btn">
-            <svg><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
-        </label>
+        <div class="section">
+            <div class="label">Оценка</div>
+            <div class="rating-group" role="radiogroup" aria-label="Оценка">
+                <!-- Порядок 5→1 нужен для подсветки звёзд через row-reverse -->
+                <input type="radio" name="rating" id="r5" value="5" checked>
+                <label for="r5" class="rating-btn" title="5">
+                    <svg viewBox="0 0 42 42" aria-hidden="true"><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
+                </label>
 
-        <input type="radio" name="rating" id="r2" value="2">
-        <label for="r2" class="rating-btn">
-            <svg><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
-        </label>
+                <input type="radio" name="rating" id="r4" value="4">
+                <label for="r4" class="rating-btn" title="4">
+                    <svg viewBox="0 0 42 42" aria-hidden="true"><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
+                </label>
 
-        <input type="radio" name="rating" id="r3" value="3">
-        <label for="r3" class="rating-btn">
-            <svg><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
-        </label>
+                <input type="radio" name="rating" id="r3" value="3">
+                <label for="r3" class="rating-btn" title="3">
+                    <svg viewBox="0 0 42 42" aria-hidden="true"><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
+                </label>
 
-        <input type="radio" name="rating" id="r4" value="4">
-        <label for="r4" class="rating-btn">
-            <svg><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
-        </label>
+                <input type="radio" name="rating" id="r2" value="2">
+                <label for="r2" class="rating-btn" title="2">
+                    <svg viewBox="0 0 42 42" aria-hidden="true"><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
+                </label>
 
-        <input type="radio" name="rating" id="r5" value="5" checked>
-        <label for="r5" class="rating-btn">
-            <svg><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
-        </label>
-    </div>
-</div>
-
+                <input type="radio" name="rating" id="r1" value="1">
+                <label for="r1" class="rating-btn" title="1">
+                    <svg viewBox="0 0 42 42" aria-hidden="true"><polygon points="0,15 12,12 21,0 30,12 41,15 32,27 33,42 21,36 7,42 9,28 0,15"></polygon></svg>
+                </label>
+            </div>
+        </div>
 
         <div class="section">
-            <label class="toggle-row">
+            <label class="toggle-row" for="addComment">
                 <input type="checkbox" id="addComment">
                 <span class="toggle-label">Оставлять комментарий</span>
             </label>
         </div>
 
         <div class="section">
-            <div class="label">Текст комментария</div>
+            <label class="label" for="commentText">Текст комментария</label>
             <textarea id="commentText" rows="3" disabled placeholder="Введите текст..."></textarea>
         </div>
 
         <div class="section">
-            <label class="toggle-row">
+            <label class="toggle-row" for="enabled">
                 <input type="checkbox" id="enabled" checked>
                 <span class="toggle-label">Автоматически применять</span>
             </label>
@@ -65,7 +65,7 @@
         <div class="footer">
             <div class="status" id="status">
                 <div class="status-dot"></div>
-                <span class="status-text">Готово к работе</span>
+                <span class="status-text">Активно</span>
             </div>
         </div>
     </div>

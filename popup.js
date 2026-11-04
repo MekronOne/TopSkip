@@ -1,9 +1,9 @@
 (() => {
     'use strict';
-    const api = (typeof browser !== 'undefined' ? browser : chrome);
 
-    // Настройки по умолчанию (если ничего не сохранено)
-    const defaults = {
+    const api = typeof browser !== 'undefined' ? browser : chrome;
+
+    const DEFAULTS = {
         rating: 5,
         addComment: false,
         commentText: '',
@@ -12,64 +12,96 @@
 
     const els = {
         ratingInputs: document.querySelectorAll('input[name="rating"]'),
- addComment: document.getElementById('addComment'),
- commentText: document.getElementById('commentText'),
- enabled: document.getElementById('enabled'),
- status: document.getElementById('status'),
- statusText: document.querySelector('.status-text'),
+        addComment: document.getElementById('addComment'),
+        commentText: document.getElementById('commentText'),
+        enabled: document.getElementById('enabled'),
+        status: document.getElementById('status'),
+        statusText: document.querySelector('.status-text'),
     };
 
-    // Загрузка сохранённых настроек (или значений по умолчанию)
-    api.storage.local.get(defaults, (data) => {
-        // Оценка
-        const target = document.getElementById(`r${data.rating}`);
-        if (target) target.checked = true;
+    function storageGet(defaults) {
+        try {
+            const result = api.storage.local.get(defaults);
+            if (result && typeof result.then === 'function') return result;
+        } catch (_) {
+            // ниже используем callback-вариант
+        }
+        return new Promise((resolve) => api.storage.local.get(defaults, resolve));
+    }
 
-        // Комментарий
-        els.addComment.checked = data.addComment;
-        els.commentText.value = data.commentText;
-        els.commentText.disabled = !data.addComment;
+    function storageSet(patch) {
+        try {
+            const result = api.storage.local.set(patch);
+            if (result && typeof result.then === 'function') return result;
+        } catch (_) {
+            // ниже используем callback-вариант
+        }
+        return new Promise((resolve) => api.storage.local.set(patch, resolve));
+    }
 
-        // Включено
-        els.enabled.checked = data.enabled;
-        updateStatus(data.enabled);
-    });
+    function save(patch) {
+        return storageSet(patch).catch((error) => {
+            console.warn('[Top Skip] Не удалось сохранить настройки:', error);
+        });
+    }
 
-    // Сохранение при изменении (навсегда)
-    const save = (patch) => {
-        api.storage.local.set(patch);
-    };
+    function updateStatus(enabled) {
+        if (enabled) {
+            els.status.classList.remove('disabled');
+            els.statusText.textContent = 'Активно';
+        } else {
+            els.status.classList.add('disabled');
+            els.statusText.textContent = 'На паузе';
+        }
+    }
+
+    function syncCommentState(enabled) {
+        els.commentText.disabled = !enabled;
+    }
+
+    async function load() {
+        let data = { ...DEFAULTS };
+
+        try {
+            data = { ...DEFAULTS, ...(await storageGet(DEFAULTS)) };
+        } catch (error) {
+            console.warn('[Top Skip] Не удалось загрузить настройки:', error);
+        }
+
+        const rating = Math.min(5, Math.max(1, Number(data.rating) || DEFAULTS.rating));
+        const ratingInput = document.getElementById(`r${rating}`);
+        if (ratingInput) ratingInput.checked = true;
+
+        els.addComment.checked = Boolean(data.addComment);
+        els.commentText.value = data.commentText || '';
+        syncCommentState(els.addComment.checked);
+
+        els.enabled.checked = Boolean(data.enabled);
+        updateStatus(els.enabled.checked);
+    }
 
     els.ratingInputs.forEach((input) => {
         input.addEventListener('change', () => {
-            save({ rating: parseInt(input.value, 10) });
+            if (!input.checked) return;
+            void save({ rating: Number(input.value) });
         });
     });
 
     els.addComment.addEventListener('change', () => {
-        const value = els.addComment.checked;
-        save({ addComment: value });
-        els.commentText.disabled = !value;
-        if (!value) els.commentText.value = '';
+        const enabled = els.addComment.checked;
+        syncCommentState(enabled);
+        void save({ addComment: enabled });
     });
 
-        els.commentText.addEventListener('input', () => {
-            save({ commentText: els.commentText.value });
-        });
+    els.commentText.addEventListener('input', () => {
+        void save({ commentText: els.commentText.value });
+    });
 
-        els.enabled.addEventListener('change', () => {
-            const value = els.enabled.checked;
-            save({ enabled: value });
-            updateStatus(value);
-        });
+    els.enabled.addEventListener('change', () => {
+        const enabled = els.enabled.checked;
+        updateStatus(enabled);
+        void save({ enabled });
+    });
 
-        function updateStatus(enabled) {
-            if (enabled) {
-                els.status.classList.remove('disabled');
-                els.statusText.textContent = 'Активно — ждём форму оценки';
-            } else {
-                els.status.classList.add('disabled');
-                els.statusText.textContent = 'Приостановлено';
-            }
-        }
+    void load();
 })();
