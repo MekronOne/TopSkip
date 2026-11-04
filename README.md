@@ -28,12 +28,6 @@
 - `TopSkip-3.1.zip` — для Chrome (распакованное расширение);
 - `TopSkip-3.1.xpi` — для Firefox (неподписанный XPI; требует подписи в Mozilla или Dev Edition/Nightly).
 
-### Публикация в Firefox
-
-1. Откройте [addons.mozilla.org/developers](https://addons.mozilla.org/developers/) и войдите в аккаунт Mozilla.
-2. Нажмите «Submit a New Add-on», выберите самостоятельное распространение (unlisted / «On your own») и загрузите `TopSkip-3.1.xpi`.
-3. После автоматической проверки скачайте подписанный XPI и установите его через `about:addons` → шестерёнка → «Install Add-on From File…».
-
 ## Настройки
 
 | Настройка | Описание | По умолчанию |
