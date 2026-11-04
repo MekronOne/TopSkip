@@ -19,7 +19,7 @@ WebExtension для автоматической простановки оцен
 Готовые архивы лежат в разделе [Releases](https://github.com/MekronOne/TopSkip/releases/latest):
 
 - `TopSkip-3.0.zip` — для Chrome (распакованное расширение);
-- `TopSkip-3.0.xpi` — для Firefox (подписанный или для Dev Edition/Nightly).
+- `TopSkip-3.0.xpi` — для Firefox (неподписанный XPI; требует подписи в Mozilla или Dev Edition/Nightly).
 
 ### Firefox
 
