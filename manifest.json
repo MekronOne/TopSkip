@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Top Skip",
-  "version": "3.0",
+  "version": "3.1",
   "description": "Автоматическая оценка уроков в журнале Top Academy",
   "permissions": [
     "storage"
@@ -13,9 +13,9 @@
     "default_popup": "popup.html",
     "default_title": "Top Skip",
     "default_icon": {
-      "16": "TopSkip.png",
-      "48": "TopSkip.png",
-      "128": "TopSkip.png"
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
     }
   },
   "content_scripts": [
@@ -30,13 +30,13 @@
     }
   ],
   "icons": {
-    "16": "TopSkip.png",
-    "48": "TopSkip.png",
-    "128": "TopSkip.png"
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "top-skip@local",
+      "id": "top-skip@mekronone.github.io",
       "strict_min_version": "109.0"
     }
   }

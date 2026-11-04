@@ -46,6 +46,8 @@
     }
 
     function updateStatus(enabled) {
+        if (!els.status || !els.statusText) return;
+
         if (enabled) {
             els.status.classList.remove('disabled');
             els.statusText.textContent = 'Активно';

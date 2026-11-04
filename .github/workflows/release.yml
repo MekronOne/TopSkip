@@ -16,23 +16,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build release archives
+        run: python3 scripts/build.py
+
       - name: Verify release archives
         run: |
-          test -f dist/TopSkip-3.0.zip
-          test -f dist/TopSkip-3.0.xpi
-          python3 -m zipfile -l dist/TopSkip-3.0.zip
+          ls -l dist
+          python3 -m zipfile -l dist/*.zip
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          VERSION="$(python3 -c 'import json; print(json.load(open("manifest.json"))["version"])')"
+          TITLE="Top Skip ${VERSION}"
+
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" dist/TopSkip-3.0.zip dist/TopSkip-3.0.xpi --clobber
+            gh release upload "${GITHUB_REF_NAME}" dist/*.zip dist/*.xpi --clobber
           else
             gh release create "${GITHUB_REF_NAME}" \
-              dist/TopSkip-3.0.zip \
-              dist/TopSkip-3.0.xpi \
-              --title "Top Skip 3.0" \
+              dist/*.zip \
+              dist/*.xpi \
+              --title "${TITLE}" \
               --generate-notes \
               --verify-tag \
               --latest

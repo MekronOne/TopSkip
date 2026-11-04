@@ -25,8 +25,14 @@
 
 Готовые архивы лежат в разделе [Releases](https://github.com/MekronOne/TopSkip/releases/latest):
 
-- `TopSkip-3.0.zip` — для Chrome (распакованное расширение);
-- `TopSkip-3.0.xpi` — для Firefox (неподписанный XPI; требует подписи в Mozilla или Dev Edition/Nightly).
+- `TopSkip-3.1.zip` — для Chrome (распакованное расширение);
+- `TopSkip-3.1.xpi` — для Firefox (неподписанный XPI; требует подписи в Mozilla или Dev Edition/Nightly).
+
+### Публикация в Firefox
+
+1. Откройте [addons.mozilla.org/developers](https://addons.mozilla.org/developers/) и войдите в аккаунт Mozilla.
+2. Нажмите «Submit a New Add-on», выберите самостоятельное распространение (unlisted / «On your own») и загрузите `TopSkip-3.1.xpi`.
+3. После автоматической проверки скачайте подписанный XPI и установите его через `about:addons` → шестерёнка → «Install Add-on From File…».
 
 ## Настройки
 
@@ -37,6 +43,14 @@
 | Текст комментария | Текст комментария к оценке | пусто |
 | Автоматически применять | Включение и пауза автоматизации | включено |
 
+## Сборка архивов
+
+```bash
+python3 scripts/build.py
+```
+
+Скрипт читает версию из `manifest.json` и создаёт в `dist/` файлы `TopSkip-<версия>.zip` и `TopSkip-<версия>.xpi`.
+
 ## Структура
 
 ```text
@@ -46,5 +60,7 @@
 ├── popup.html      # панель настроек
 ├── popup.css       # тёмная тема панели
 ├── popup.js        # загрузка и сохранение настроек
+├── icons/          # иконки 16×16, 48×48, 128×128
+├── scripts/        # сборка архивов
 └── dist/           # архивы для установки
 ```
