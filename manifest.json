@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Top Skip",
-  "version": "3.1",
+  "version": "3.2",
   "description": "Автоматическая оценка уроков в журнале Top Academy",
   "permissions": [
     "storage"

@@ -10,6 +10,22 @@
         enabled: true,
     };
 
+    // Все ожидания привязаны к состоянию DOM, а не к фиксированным паузам.
+    const TIMING = {
+        poll: 50,
+        ratingTimeout: 1200,
+        ratingAttempts: 2,
+        afterRating: 20,
+        retryDelay: 50,
+        commentSettle: 100,
+        textareaTimeout: 1200,
+        nextButtonTimeout: 1500,
+        sendButtonTimeout: 2000,
+        formCloseTimeout: 800,
+        scanDebounce: 40,
+        scanAfterProcess: 120,
+    };
+
     let settings = { ...DEFAULTS };
     let processing = false;
     let scanTimer = null;
@@ -33,6 +49,18 @@
 
     function sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async function waitFor(getValue, timeout = 1500, interval = TIMING.poll) {
+        const deadline = Date.now() + timeout;
+
+        while (Date.now() <= deadline) {
+            const value = getValue();
+            if (value) return value;
+            await sleep(interval);
+        }
+
+        return null;
     }
 
     function clampRating(value) {
@@ -64,19 +92,6 @@
 
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
-    }
-
-    function waitFor(getValue, timeout = 5000, interval = 100) {
-        const deadline = Date.now() + timeout;
-
-        return (async () => {
-            while (Date.now() <= deadline) {
-                const value = getValue();
-                if (value) return value;
-                await sleep(interval);
-            }
-            return null;
-        })();
     }
 
     // Полный цикл мышиных событий. Одного .click() Angular/Zone.js недостаточно.
@@ -206,12 +221,7 @@
         return stars[value - 1] || null;
     }
 
-    function setRating(ratingRoot, value) {
-        if (!ratingRoot) return false;
-
-        const current = getRatingValue(ratingRoot);
-        if (current !== null && current !== 0) return true;
-
+    function clickStar(ratingRoot, value) {
         const star = findStar(ratingRoot, value);
         if (!star) {
             console.warn(`[Top Skip] Не найдена звезда с оценкой ${value}`);
@@ -219,8 +229,56 @@
         }
 
         mouseClick(star);
-        console.log(`[Top Skip] Выбрана оценка ${value}`);
         return true;
+    }
+
+    /**
+     * Кликает по звезде и ждёт, пока Angular зарегистрирует оценку.
+     * Главный признак — изменение aria-valuenow у слайдера рейтинга.
+     * Возвращает true только после подтверждения состояния.
+     */
+    async function applyRating(ratingRoot, value) {
+        if (!ratingRoot) return false;
+
+        const current = getRatingValue(ratingRoot);
+        if (current === value) return true;
+
+        for (let attempt = 0; attempt < TIMING.ratingAttempts; attempt += 1) {
+            if (!clickStar(ratingRoot, value)) return false;
+
+            const accepted = await waitFor(() => {
+                const actual = getRatingValue(ratingRoot);
+                return actual !== null && actual > 0;
+            }, TIMING.ratingTimeout, TIMING.poll);
+
+            if (!accepted) {
+                // Angular ещё не принял клик — даём ему ещё одну попытку.
+                await sleep(TIMING.retryDelay);
+                continue;
+            }
+
+            const actual = getRatingValue(ratingRoot);
+            if (actual !== value) {
+                // Оценка принята, но значение отличается. Пробуем выставить точное.
+                console.warn(`[Top Skip] Ожидали оценку ${value}, получено ${actual}`);
+                await sleep(TIMING.retryDelay);
+                continue;
+            }
+
+            // Даём Angular завершить текущий цикл change detection.
+            await sleep(TIMING.afterRating);
+            return true;
+        }
+
+        // Если оценка всё-таки ненулевая, форма уже прошла валидацию.
+        const actual = getRatingValue(ratingRoot);
+        if (actual !== null && actual > 0) {
+            console.warn(`[Top Skip] Оценка зарегистрирована как ${actual}`);
+            await sleep(TIMING.afterRating);
+            return true;
+        }
+
+        return false;
     }
 
     function findRatingRoot(block) {
@@ -336,8 +394,8 @@
             filled = true;
         }
 
-        if (ratingRoot) {
-            filled = setRating(ratingRoot, clampRating(settings.rating)) || filled;
+        if (ratingRoot && getRatingValue(ratingRoot) === 0) {
+            filled = clickStar(ratingRoot, clampRating(settings.rating)) || filled;
         }
 
         // Если Angular ещё не отрисовал поля, не помечаем форму обработанной.
@@ -352,29 +410,26 @@
     async function processRatingForm({ ratingBlock, ratingRoot, root }) {
         const rating = clampRating(settings.rating);
 
-        // 1. Звезда.
-        if (getRatingValue(ratingRoot) === 0 || getRatingValue(ratingRoot) === null) {
-            if (!setRating(ratingRoot, rating)) {
-                throw new Error('Не удалось найти звезду рейтинга');
-            }
-
-            await waitFor(() => {
-                const value = getRatingValue(ratingRoot);
-                return value !== null && value !== 0;
-            }, 3000, 50);
+        // 1. Звезда и ожидание подтверждения от Angular.
+        const accepted = await applyRating(ratingRoot, rating);
+        if (!accepted) {
+            throw new Error('Angular не подтвердил оценку: aria-valuenow остался 0');
         }
 
         if (!settings.enabled) return;
 
         // 2. Комментарий.
         if (settings.addComment && settings.commentText.trim()) {
-            const textarea = findCommentTextarea(root)
-                || await waitFor(() => findCommentTextarea(root), 2000, 100);
+            const textarea = await waitFor(
+                () => findCommentTextarea(root),
+                TIMING.textareaTimeout,
+                TIMING.poll
+            );
 
             if (textarea) {
                 setTextareaValue(textarea, settings.commentText);
                 console.log('[Top Skip] Комментарий добавлен');
-                await sleep(80);
+                await sleep(TIMING.commentSettle);
             } else {
                 console.warn('[Top Skip] Поле комментария не найдено');
             }
@@ -382,21 +437,28 @@
 
         if (!settings.enabled) return;
 
-        // 3. «Далее».
-        const nextButton = findButton(root, 'Далее')
-            || await waitFor(() => findButton(root, 'Далее'), 4000, 100);
+        // 3. «Далее» — только после того, как оценка реально принята.
+        const nextButton = await waitFor(
+            () => findButton(root, 'Далее'),
+            TIMING.nextButtonTimeout,
+            TIMING.poll
+        );
 
-        if (nextButton) {
-            mouseClick(nextButton);
-            console.log('[Top Skip] Нажата кнопка «Далее»');
-            await sleep(150);
+        if (!nextButton) {
+            throw new Error('Кнопка «Далее» не найдена');
         }
+
+        mouseClick(nextButton);
+        console.log('[Top Skip] Нажата кнопка «Далее»');
 
         if (!settings.enabled) return;
 
-        // 4. «Отправить» появляется после «Далее».
-        const sendButton = findButton(root, 'Отправить')
-            || await waitFor(() => findButton(root, 'Отправить'), 8000, 100);
+        // 4. «Отправить» — ждём появления кнопки, без фиксированной паузы.
+        const sendButton = await waitFor(
+            () => findButton(root, 'Отправить'),
+            TIMING.sendButtonTimeout,
+            TIMING.poll
+        );
 
         if (!sendButton) {
             throw new Error('Кнопка «Отправить» не появилась');
@@ -406,19 +468,18 @@
         console.log('[Top Skip] Нажата кнопка «Отправить»');
 
         // 5. Ждём закрытия формы, чтобы не обработать её повторно.
-        await sleep(200);
         await waitFor(() => {
             if (!ratingBlock.isConnected || !isVisible(ratingBlock)) return true;
             const currentRoot = root?.isConnected ? root : document;
             return !findButton(currentRoot, 'Отправить');
-        }, 12000, 200);
+        }, TIMING.formCloseTimeout, TIMING.poll);
 
         console.log('[Top Skip] Форма оценки закрыта');
     }
 
     // === Планировщик ===
 
-    function scheduleScan(delay = 80) {
+    function scheduleScan(delay = TIMING.scanDebounce) {
         if (scanTimer) clearTimeout(scanTimer);
         scanTimer = setTimeout(() => {
             scanTimer = null;
@@ -446,7 +507,7 @@
             console.warn('[Top Skip]', error);
         } finally {
             processing = false;
-            scheduleScan(250);
+            scheduleScan(TIMING.scanAfterProcess);
         }
     }
 
@@ -456,7 +517,7 @@
         if (observer || !document.body) return;
 
         observer = new MutationObserver(() => {
-            scheduleScan(60);
+            scheduleScan(TIMING.scanDebounce);
         });
 
         observer.observe(document.body, {
@@ -493,7 +554,7 @@
 
             if (!changed) return;
             settings = normalizeSettings(settings);
-            scheduleScan(80);
+            scheduleScan(TIMING.scanDebounce);
         });
     }
 
