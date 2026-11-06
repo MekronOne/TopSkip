@@ -25,8 +25,8 @@
 
 Готовые архивы лежат в разделе [Releases](https://github.com/MekronOne/TopSkip/releases/latest):
 
-- `TopSkip-3.2.zip` — для Chrome (распакованное расширение);
-- `TopSkip-3.2.xpi` — для Firefox (неподписанный XPI; требует подписи в Mozilla или Dev Edition/Nightly).
+- `TopSkip-3.3.zip` — для Chrome (распакованное расширение);
+- `TopSkip-3.3.xpi` — для Firefox (неподписанный XPI; требует подписи в Mozilla или Dev Edition/Nightly).
 
 ## Настройки
 

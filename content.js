@@ -343,6 +343,27 @@
         return null;
     }
 
+    // === Автоматическое закрытие объявлений ===
+
+    function closeAnnouncementModal() {
+        const titles = document.querySelectorAll('.modal-content .modal-title');
+
+        for (const title of titles) {
+            const text = normalizeText(title.textContent).toLowerCase();
+            if (!text.includes('непрочитанные объявления') || !isVisible(title)) continue;
+
+            const modal = title.closest('.modal-content');
+            const closeButton = modal?.querySelector('.close-btn');
+            if (!closeButton || !isVisible(closeButton)) continue;
+
+            mouseClick(closeButton);
+            console.log('[Top Skip] Закрыто окно с объявлениями');
+            return true;
+        }
+
+        return false;
+    }
+
     // === Поиск неоценённой формы ===
 
     function findPendingRating() {
@@ -488,7 +509,11 @@
     }
 
     async function scan() {
-        if (!settings.enabled || processing) return;
+        if (!settings.enabled) return;
+
+        // Сначала закрываем всплывающее окно с объявлениями, если оно есть.
+        if (closeAnnouncementModal()) return;
+        if (processing) return;
 
         // Домашнее задание имеет приоритет и не отправляется автоматически.
         const homework = findVisibleHomework();
