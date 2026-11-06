@@ -15,11 +15,13 @@
         poll: 50,
         ratingTimeout: 1200,
         ratingAttempts: 2,
-        afterRating: 20,
+        afterRating: 50,
+        hoverSettle: 60,
         retryDelay: 50,
         commentSettle: 100,
         textareaTimeout: 1200,
         nextButtonTimeout: 1500,
+        stepTransitionTimeout: 2000,
         sendButtonTimeout: 2000,
         formCloseTimeout: 800,
         scanDebounce: 40,
@@ -33,6 +35,9 @@
 
     // Форма домашнего задания заполняется один раз и без отправки.
     const handledHomework = new WeakSet();
+
+    // Каждый шаг формы оценки обрабатываем один раз.
+    const handledRatings = new WeakSet();
 
     // === Совместимость storage (callback в Chrome, Promise в Firefox) ===
     function storageGet(defaults) {
@@ -233,49 +238,68 @@
     }
 
     /**
+     * Сбрасывает hover-состояние рейтинга.
+     * В RatingComponent на mouseleave вызывается reset(), который возвращает
+     * value к preValue. После реального клика preValue уже равен выбранной
+     * оценке, поэтому значение остаётся. Если же был только hover, значение
+     * откатится к 0 — это позволяет отличить наведение от выбора.
+     */
+    function clearRatingHover(ratingRoot) {
+        const slider = ratingRoot?.querySelector('[role="slider"]');
+        if (!slider) return;
+
+        const rect = slider.getBoundingClientRect();
+        const base = {
+            bubbles: false,
+            cancelable: true,
+            composed: true,
+            view: window,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+            screenX: rect.left + rect.width / 2,
+            screenY: rect.top + rect.height / 2,
+            relatedTarget: document.body,
+        };
+
+        slider.dispatchEvent(new MouseEvent('mouseout', { ...base, bubbles: true }));
+        slider.dispatchEvent(new MouseEvent('mouseleave', base));
+    }
+
+    /**
      * Кликает по звезде и ждёт, пока Angular зарегистрирует оценку.
-     * Главный признак — изменение aria-valuenow у слайдера рейтинга.
-     * Возвращает true только после подтверждения состояния.
+     * aria-valuenow меняется и при наведении, поэтому одного значения мало:
+     * после клика hover сбрасывается и проверяется, что оценка не откатилась.
      */
     async function applyRating(ratingRoot, value) {
         if (!ratingRoot) return false;
 
-        const current = getRatingValue(ratingRoot);
-        if (current === value) return true;
-
         for (let attempt = 0; attempt < TIMING.ratingAttempts; attempt += 1) {
             if (!clickStar(ratingRoot, value)) return false;
 
-            const accepted = await waitFor(() => {
-                const actual = getRatingValue(ratingRoot);
-                return actual !== null && actual > 0;
-            }, TIMING.ratingTimeout, TIMING.poll);
+            const accepted = await waitFor(
+                () => getRatingValue(ratingRoot) === value,
+                TIMING.ratingTimeout,
+                TIMING.poll
+            );
 
             if (!accepted) {
-                // Angular ещё не принял клик — даём ему ещё одну попытку.
+                clearRatingHover(ratingRoot);
                 await sleep(TIMING.retryDelay);
                 continue;
             }
 
-            const actual = getRatingValue(ratingRoot);
-            if (actual !== value) {
-                // Оценка принята, но значение отличается. Пробуем выставить точное.
-                console.warn(`[Top Skip] Ожидали оценку ${value}, получено ${actual}`);
-                await sleep(TIMING.retryDelay);
-                continue;
+            // Если это было только наведение, reset() вернёт 0.
+            clearRatingHover(ratingRoot);
+            await sleep(TIMING.hoverSettle);
+
+            if (getRatingValue(ratingRoot) === value) {
+                // Даём Angular завершить текущий цикл change detection.
+                await sleep(TIMING.afterRating);
+                return true;
             }
 
-            // Даём Angular завершить текущий цикл change detection.
-            await sleep(TIMING.afterRating);
-            return true;
-        }
-
-        // Если оценка всё-таки ненулевая, форма уже прошла валидацию.
-        const actual = getRatingValue(ratingRoot);
-        if (actual !== null && actual > 0) {
-            console.warn(`[Top Skip] Оценка зарегистрирована как ${actual}`);
-            await sleep(TIMING.afterRating);
-            return true;
+            console.warn('[Top Skip] Оценка не зафиксировалась, повторяю клик');
+            await sleep(TIMING.retryDelay);
         }
 
         return false;
@@ -366,8 +390,9 @@
 
     // === Поиск неоценённой формы ===
 
-    function findPendingRating() {
-        const candidates = document.querySelectorAll('.rating-block rating, .rating-block [role="slider"]');
+    function findPendingRating(scope = document) {
+        const rootScope = scope?.querySelectorAll ? scope : document;
+        const candidates = rootScope.querySelectorAll('.rating-block rating, .rating-block [role="slider"]');
         const seen = new Set();
 
         for (const candidate of candidates) {
@@ -375,16 +400,24 @@
             if (!ratingRoot || seen.has(ratingRoot) || !isVisible(ratingRoot)) continue;
             seen.add(ratingRoot);
 
-            const value = getRatingValue(ratingRoot);
-            // aria-valuenow = 0 — форма ещё не оценена именно нами.
-            if (value !== 0 && value !== null) continue;
+            // Домашнее задание заполняется отдельно.
+            if (ratingRoot.closest('hw-upload-homework')) continue;
 
             const ratingBlock = ratingRoot.closest('.rating-block') || ratingRoot;
-            return {
-                ratingBlock,
-                ratingRoot,
-                root: findFormRoot(ratingBlock),
-            };
+            const root = findFormRoot(ratingBlock);
+            if (!root?.querySelector('.confirm-evaluation')) continue;
+
+            // aria-valuenow меняется и при наведении, поэтому ориентируемся
+            // на уже обработанные DOM-узлы, а не только на значение атрибута.
+            if (handledRatings.has(ratingRoot)) {
+                if (getRatingValue(ratingRoot) === 0) {
+                    handledRatings.delete(ratingRoot);
+                } else {
+                    continue;
+                }
+            }
+
+            return { ratingBlock, ratingRoot, root };
         }
 
         return null;
@@ -428,74 +461,123 @@
 
     // === Основной сценарий оценки урока ===
 
-    async function processRatingForm({ ratingBlock, ratingRoot, root }) {
-        const rating = clampRating(settings.rating);
-
-        // 1. Звезда и ожидание подтверждения от Angular.
-        const accepted = await applyRating(ratingRoot, rating);
-        if (!accepted) {
-            throw new Error('Angular не подтвердил оценку: aria-valuenow остался 0');
-        }
-
-        if (!settings.enabled) return;
-
-        // 2. Комментарий.
-        if (settings.addComment && settings.commentText.trim()) {
-            const textarea = await waitFor(
-                () => findCommentTextarea(root),
-                TIMING.textareaTimeout,
-                TIMING.poll
-            );
-
-            if (textarea) {
-                setTextareaValue(textarea, settings.commentText);
-                console.log('[Top Skip] Комментарий добавлен');
-                await sleep(TIMING.commentSettle);
-            } else {
-                console.warn('[Top Skip] Поле комментария не найдено');
-            }
-        }
-
-        if (!settings.enabled) return;
-
-        // 3. «Далее» — только после того, как оценка реально принята.
-        const nextButton = await waitFor(
-            () => findButton(root, 'Далее'),
-            TIMING.nextButtonTimeout,
-            TIMING.poll
-        );
-
-        if (!nextButton) {
-            throw new Error('Кнопка «Далее» не найдена');
-        }
-
-        mouseClick(nextButton);
-        console.log('[Top Skip] Нажата кнопка «Далее»');
-
-        if (!settings.enabled) return;
-
-        // 4. «Отправить» — ждём появления кнопки, без фиксированной паузы.
-        const sendButton = await waitFor(
-            () => findButton(root, 'Отправить'),
-            TIMING.sendButtonTimeout,
-            TIMING.poll
-        );
-
-        if (!sendButton) {
-            throw new Error('Кнопка «Отправить» не появилась');
-        }
-
-        mouseClick(sendButton);
-        console.log('[Top Skip] Нажата кнопка «Отправить»');
-
-        // 5. Ждём закрытия формы, чтобы не обработать её повторно.
+    async function waitForFormClose(ratingBlock, root) {
         await waitFor(() => {
             if (!ratingBlock.isConnected || !isVisible(ratingBlock)) return true;
             const currentRoot = root?.isConnected ? root : document;
             return !findButton(currentRoot, 'Отправить');
         }, TIMING.formCloseTimeout, TIMING.poll);
+    }
 
-        console.log('[Top Skip] Форма оценки закрыта');
+    async function processRatingForm(initial) {
+        const rating = clampRating(settings.rating);
+        let current = initial;
+        let steps = 0;
+
+        // У формы может быть два шага: оценка преподавателя, затем урока.
+        while (steps < 4) {
+            const { ratingBlock, ratingRoot, root } = current;
+
+            // 1. Звезда и ожидание подтверждения от Angular.
+            const accepted = await applyRating(ratingRoot, rating);
+            if (!accepted) {
+                throw new Error('Angular не подтвердил оценку: значение рейтинга не зафиксировалось');
+            }
+
+            handledRatings.add(ratingRoot);
+
+            if (!settings.enabled) return;
+
+            // 2. Комментарий на текущем шаге.
+            if (settings.addComment && settings.commentText.trim()) {
+                const textarea = await waitFor(
+                    () => findCommentTextarea(root),
+                    TIMING.textareaTimeout,
+                    TIMING.poll
+                );
+
+                if (textarea) {
+                    setTextareaValue(textarea, settings.commentText);
+                    console.log('[Top Skip] Комментарий добавлен');
+                    await sleep(TIMING.commentSettle);
+                } else {
+                    console.warn('[Top Skip] Поле комментария не найдено');
+                }
+            }
+
+            if (!settings.enabled) return;
+
+            // 3. Определяем действие на текущем шаге.
+            const sendButton = findButton(root, 'Отправить');
+            const nextButton = findButton(root, 'Далее');
+
+            if (sendButton && !nextButton) {
+                mouseClick(sendButton);
+                console.log('[Top Skip] Нажата кнопка «Отправить»');
+                await waitForFormClose(ratingBlock, root);
+                console.log('[Top Skip] Форма оценки закрыта');
+                return;
+            }
+
+            let actionButton = nextButton;
+            if (!actionButton) {
+                actionButton = await waitFor(
+                    () => findButton(root, 'Далее') || findButton(root, 'Отправить'),
+                    TIMING.nextButtonTimeout,
+                    TIMING.poll
+                );
+            }
+
+            if (!actionButton) {
+                throw new Error('Кнопка «Далее» или «Отправить» не найдена');
+            }
+
+            const isSend = normalizeText(actionButton.textContent) === 'Отправить';
+            mouseClick(actionButton);
+            console.log(isSend
+                ? '[Top Skip] Нажата кнопка «Отправить»'
+                : '[Top Skip] Нажата кнопка «Далее»');
+
+            if (isSend) {
+                await waitForFormClose(ratingBlock, root);
+                console.log('[Top Skip] Форма оценки закрыта');
+                return;
+            }
+
+            if (!settings.enabled) return;
+
+            // 4. Ждём следующий шаг: новую неоценённую форму или «Отправить».
+            const nextState = await waitFor(() => {
+                const pending = findPendingRating(root);
+                if (pending) {
+                    return { type: 'rating', pending };
+                }
+
+                const send = findButton(root, 'Отправить');
+                if (send) {
+                    return { type: 'send', button: send };
+                }
+
+                return null;
+            }, TIMING.stepTransitionTimeout, TIMING.poll);
+
+            if (!nextState) {
+                throw new Error('Следующий шаг формы оценки не появился');
+            }
+
+            if (nextState.type === 'send') {
+                mouseClick(nextState.button);
+                console.log('[Top Skip] Нажата кнопка «Отправить»');
+                await waitForFormClose(ratingBlock, root);
+                console.log('[Top Skip] Форма оценки закрыта');
+                return;
+            }
+
+            current = nextState.pending;
+            steps += 1;
+        }
+
+        throw new Error('Слишком много шагов формы оценки');
     }
 
     // === Планировщик ===
