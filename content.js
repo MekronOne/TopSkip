@@ -8,6 +8,9 @@
         addComment: false,
         commentText: '',
         enabled: true,
+        blockLessonRating: false,
+        blockAds: false,
+        removeOverdue: false,
     };
 
     // Все ожидания привязаны к состоянию DOM, а не к фиксированным паузам.
@@ -38,6 +41,10 @@
 
     // Каждый шаг формы оценки обрабатываем один раз.
     const handledRatings = new WeakSet();
+
+    // Кнопки закрытия уже обработанных модальных окон.
+    const closingAnnouncements = new WeakSet();
+    const closingEvaluations = new WeakSet();
 
     // === Совместимость storage (callback в Chrome, Promise в Firefox) ===
     function storageGet(defaults) {
@@ -80,6 +87,9 @@
             addComment: Boolean(raw?.addComment),
             commentText: typeof raw?.commentText === 'string' ? raw.commentText : '',
             enabled: raw?.enabled !== false,
+            blockLessonRating: Boolean(raw?.blockLessonRating),
+            blockAds: Boolean(raw?.blockAds),
+            removeOverdue: Boolean(raw?.removeOverdue),
         };
     }
 
@@ -97,6 +107,80 @@
 
         const rect = el.getBoundingClientRect();
         return rect.width > 0 && rect.height > 0;
+    }
+
+    // === Визуальные фильтры ===
+
+    const VISUAL_STYLE_ID = 'top-skip-visual-style';
+
+    const VISUAL_STYLE = `
+        /* Окно объявлений скрыто всегда, но закрывается через Angular. */
+        .announcement-modal,
+        .announcement-modal .modal-content {
+            display: none !important;
+        }
+
+        body:has(.announcement-modal) .modal-backdrop {
+            display: none !important;
+        }
+
+        /* Блокировка окна оценки занятия. */
+        body.top-skip-block-rating .modal:has(.rating-block),
+        body.top-skip-block-rating .modal-content:has(.rating-block) {
+            display: none !important;
+        }
+
+        body.top-skip-block-rating:has(.modal .rating-block) .modal-backdrop {
+            display: none !important;
+        }
+
+        /* Реклама и истории. */
+        body.top-skip-block-ads .stories__list,
+        body.top-skip-block-ads .stories__item,
+        body.top-skip-block-ads img[src*="my-class-logo"],
+        body.top-skip-block-ads img[src*="max-logo-2025"],
+        body.top-skip-block-ads a:has(> img[src*="my-class-logo"]),
+        body.top-skip-block-ads a:has(> img[src*="max-logo-2025"]) {
+            display: none !important;
+        }
+
+        /* Просроченные домашние задания. */
+        body.top-skip-remove-overdue .homework-item.top-skip-overdue {
+            display: none !important;
+        }
+    `;
+
+    function injectVisualStyle() {
+        if (document.getElementById(VISUAL_STYLE_ID)) return;
+
+        const style = document.createElement('style');
+        style.id = VISUAL_STYLE_ID;
+        style.textContent = VISUAL_STYLE;
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    function applyVisualFilters() {
+        injectVisualStyle();
+
+        const body = document.body;
+        if (!body) return;
+
+        body.classList.toggle('top-skip-block-rating', Boolean(settings.blockLessonRating));
+        body.classList.toggle('top-skip-block-ads', Boolean(settings.blockAds));
+        body.classList.toggle('top-skip-remove-overdue', Boolean(settings.removeOverdue));
+
+        for (const item of document.querySelectorAll('.homework-item')) {
+            let overdue = false;
+
+            if (settings.removeOverdue) {
+                const text = normalizeText(item.textContent).toLowerCase();
+                overdue = text.includes('истекший')
+                    || text.includes('просроч')
+                    || Boolean(item.querySelector('.count-expired'));
+            }
+
+            item.classList.toggle('top-skip-overdue', overdue);
+        }
     }
 
     // Полный цикл мышиных событий. Одного .click() Angular/Zone.js недостаточно.
@@ -374,18 +458,47 @@
 
         for (const title of titles) {
             const text = normalizeText(title.textContent).toLowerCase();
-            if (!text.includes('непрочитанные объявления') || !isVisible(title)) continue;
+            if (!text.includes('непрочитанные объявления')) continue;
 
             const modal = title.closest('.modal-content');
             const closeButton = modal?.querySelector('.close-btn');
-            if (!closeButton || !isVisible(closeButton)) continue;
+            if (!closeButton || closingAnnouncements.has(closeButton)) continue;
 
+            // Окно скрыто CSS, поэтому не проверяем видимость: закрываем его
+            // через Angular, чтобы сайт корректно снял блокировку.
+            closingAnnouncements.add(closeButton);
             mouseClick(closeButton);
             console.log('[Top Skip] Закрыто окно с объявлениями');
             return true;
         }
 
         return false;
+    }
+
+    // === Блокировка окна оценки занятия ===
+
+    function findEvaluationModal() {
+        for (const modal of document.querySelectorAll('.modal-content')) {
+            if (modal.closest('.announcement-modal')) continue;
+            if (!modal.querySelector('.rating-block')) continue;
+            if (!modal.querySelector('.confirm-evaluation')) continue;
+            return modal;
+        }
+
+        return null;
+    }
+
+    function closeEvaluationModal(modal = findEvaluationModal()) {
+        if (!modal) return false;
+
+        const closeButton = modal.querySelector('.close-btn');
+        if (!closeButton) return false;
+        if (closingEvaluations.has(closeButton)) return false;
+
+        closingEvaluations.add(closeButton);
+        mouseClick(closeButton);
+        console.log('[Top Skip] Окно оценки занятия закрыто');
+        return true;
     }
 
     // === Поиск неоценённой формы ===
@@ -461,6 +574,10 @@
 
     // === Основной сценарий оценки урока ===
 
+    function automationAllowed() {
+        return settings.enabled && !settings.blockLessonRating;
+    }
+
     async function waitForFormClose(ratingBlock, root) {
         await waitFor(() => {
             if (!ratingBlock.isConnected || !isVisible(ratingBlock)) return true;
@@ -476,6 +593,11 @@
 
         // У формы может быть два шага: оценка преподавателя, затем урока.
         while (steps < 4) {
+            if (!automationAllowed()) {
+                closeEvaluationModal();
+                return;
+            }
+
             const { ratingBlock, ratingRoot, root } = current;
 
             // 1. Звезда и ожидание подтверждения от Angular.
@@ -486,7 +608,10 @@
 
             handledRatings.add(ratingRoot);
 
-            if (!settings.enabled) return;
+            if (!automationAllowed()) {
+                closeEvaluationModal();
+                return;
+            }
 
             // 2. Комментарий на текущем шаге.
             if (settings.addComment && settings.commentText.trim()) {
@@ -505,7 +630,10 @@
                 }
             }
 
-            if (!settings.enabled) return;
+            if (!automationAllowed()) {
+                closeEvaluationModal();
+                return;
+            }
 
             // 3. Определяем действие на текущем шаге.
             const sendButton = findButton(root, 'Отправить');
@@ -544,7 +672,10 @@
                 return;
             }
 
-            if (!settings.enabled) return;
+            if (!automationAllowed()) {
+                closeEvaluationModal();
+                return;
+            }
 
             // 4. Ждём следующий шаг: новую неоценённую форму или «Отправить».
             const nextState = await waitFor(() => {
@@ -563,6 +694,11 @@
 
             if (!nextState) {
                 throw new Error('Следующий шаг формы оценки не появился');
+            }
+
+            if (!automationAllowed()) {
+                closeEvaluationModal();
+                return;
             }
 
             if (nextState.type === 'send') {
@@ -591,11 +727,19 @@
     }
 
     async function scan() {
-        if (!settings.enabled) return;
+        // Визуальные фильтры работают независимо от автоматизации.
+        applyVisualFilters();
 
-        // Сначала закрываем всплывающее окно с объявлениями, если оно есть.
+        // Окно объявлений закрываем всегда, при любых настройках.
         if (closeAnnouncementModal()) return;
-        if (processing) return;
+
+        // Блокировка окна оценки занятия тоже работает независимо.
+        if (settings.blockLessonRating) {
+            const evaluationModal = findEvaluationModal();
+            if (evaluationModal && closeEvaluationModal(evaluationModal)) return;
+        }
+
+        if (!settings.enabled || processing) return;
 
         // Домашнее задание имеет приоритет и не отправляется автоматически.
         const homework = findVisibleHomework();
@@ -603,6 +747,9 @@
             fillHomework(homework);
             return;
         }
+
+        // При включённой блокировке не запускаем автоматическую оценку.
+        if (settings.blockLessonRating) return;
 
         const pending = findPendingRating();
         if (!pending) return;
@@ -645,6 +792,7 @@
 
         console.log('[Top Skip] Настройки загружены:', settings);
 
+        applyVisualFilters();
         startObserver();
         scheduleScan(0);
 
@@ -661,6 +809,7 @@
 
             if (!changed) return;
             settings = normalizeSettings(settings);
+            applyVisualFilters();
             scheduleScan(TIMING.scanDebounce);
         });
     }

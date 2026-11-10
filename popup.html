@@ -44,8 +44,11 @@
 
         <div class="section">
             <label class="toggle-row" for="addComment">
-                <input type="checkbox" id="addComment">
-                <span class="toggle-label">Оставлять комментарий</span>
+                <span class="toggle-copy">
+                    <span class="toggle-label">Оставлять комментарий</span>
+                    <span class="toggle-hint">Добавлять текст к оценке</span>
+                </span>
+                <input type="checkbox" role="switch" id="addComment">
             </label>
         </div>
 
@@ -56,11 +59,43 @@
 
         <div class="section">
             <label class="toggle-row" for="enabled">
-                <input type="checkbox" id="enabled" checked>
-                <span class="toggle-label">Автоматически применять</span>
+                <span class="toggle-copy">
+                    <span class="toggle-label">Автоматически применять</span>
+                    <span class="toggle-hint">Ставить оценки и отправлять форму</span>
+                </span>
+                <input type="checkbox" role="switch" id="enabled" checked>
             </label>
         </div>
 
+        <div class="section section-visual">
+            <div class="label">Визуальные фильтры</div>
+
+            <label class="toggle-row" for="blockLessonRating">
+                <span class="toggle-copy">
+                    <span class="toggle-label">Блокировать оценку занятия</span>
+                    <span class="toggle-hint">Скрывать окно оценки урока</span>
+                </span>
+                <input type="checkbox" role="switch" id="blockLessonRating">
+            </label>
+
+            <label class="toggle-row" for="blockAds">
+                <span class="toggle-copy">
+                    <span class="toggle-label">Блокировать рекламу</span>
+                    <span class="toggle-hint">Скрывать истории и баннеры</span>
+                </span>
+                <input type="checkbox" role="switch" id="blockAds">
+            </label>
+
+            <label class="toggle-row" for="removeOverdue">
+                <span class="toggle-copy">
+                    <span class="toggle-label">Убрать просрочки</span>
+                    <span class="toggle-hint">Скрывать просроченные задания</span>
+                </span>
+                <input type="checkbox" role="switch" id="removeOverdue">
+            </label>
+
+            <p class="section-note">Только визуальные изменения: данные на сайте не меняются.</p>
+        </div>
 
     </div>
 

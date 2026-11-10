@@ -8,6 +8,9 @@
         addComment: false,
         commentText: '',
         enabled: true,
+        blockLessonRating: false,
+        blockAds: false,
+        removeOverdue: false,
     };
 
     const els = {
@@ -15,6 +18,9 @@
         addComment: document.getElementById('addComment'),
         commentText: document.getElementById('commentText'),
         enabled: document.getElementById('enabled'),
+        blockLessonRating: document.getElementById('blockLessonRating'),
+        blockAds: document.getElementById('blockAds'),
+        removeOverdue: document.getElementById('removeOverdue'),
         status: document.getElementById('status'),
         statusText: document.querySelector('.status-text'),
     };
@@ -80,6 +86,10 @@
 
         els.enabled.checked = Boolean(data.enabled);
         updateStatus(els.enabled.checked);
+
+        els.blockLessonRating.checked = Boolean(data.blockLessonRating);
+        els.blockAds.checked = Boolean(data.blockAds);
+        els.removeOverdue.checked = Boolean(data.removeOverdue);
     }
 
     els.ratingInputs.forEach((input) => {
@@ -103,6 +113,18 @@
         const enabled = els.enabled.checked;
         updateStatus(enabled);
         void save({ enabled });
+    });
+
+    els.blockLessonRating.addEventListener('change', () => {
+        void save({ blockLessonRating: els.blockLessonRating.checked });
+    });
+
+    els.blockAds.addEventListener('change', () => {
+        void save({ blockAds: els.blockAds.checked });
+    });
+
+    els.removeOverdue.addEventListener('change', () => {
+        void save({ removeOverdue: els.removeOverdue.checked });
     });
 
     void load();
