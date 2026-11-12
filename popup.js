@@ -8,7 +8,6 @@
         addComment: false,
         commentText: '',
         enabled: true,
-        blockLessonRating: false,
         blockAds: false,
         removeOverdue: false,
     };
@@ -18,7 +17,6 @@
         addComment: document.getElementById('addComment'),
         commentText: document.getElementById('commentText'),
         enabled: document.getElementById('enabled'),
-        blockLessonRating: document.getElementById('blockLessonRating'),
         blockAds: document.getElementById('blockAds'),
         removeOverdue: document.getElementById('removeOverdue'),
         status: document.getElementById('status'),
@@ -87,7 +85,6 @@
         els.enabled.checked = Boolean(data.enabled);
         updateStatus(els.enabled.checked);
 
-        els.blockLessonRating.checked = Boolean(data.blockLessonRating);
         els.blockAds.checked = Boolean(data.blockAds);
         els.removeOverdue.checked = Boolean(data.removeOverdue);
     }
@@ -113,10 +110,6 @@
         const enabled = els.enabled.checked;
         updateStatus(enabled);
         void save({ enabled });
-    });
-
-    els.blockLessonRating.addEventListener('change', () => {
-        void save({ blockLessonRating: els.blockLessonRating.checked });
     });
 
     els.blockAds.addEventListener('change', () => {

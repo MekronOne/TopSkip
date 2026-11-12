@@ -8,7 +8,6 @@
         addComment: false,
         commentText: '',
         enabled: true,
-        blockLessonRating: false,
         blockAds: false,
         removeOverdue: false,
     };
@@ -44,7 +43,6 @@
 
     // Кнопки закрытия уже обработанных модальных окон.
     const closingAnnouncements = new WeakSet();
-    const closingEvaluations = new WeakSet();
 
     // === Совместимость storage (callback в Chrome, Promise в Firefox) ===
     function storageGet(defaults) {
@@ -87,7 +85,6 @@
             addComment: Boolean(raw?.addComment),
             commentText: typeof raw?.commentText === 'string' ? raw.commentText : '',
             enabled: raw?.enabled !== false,
-            blockLessonRating: Boolean(raw?.blockLessonRating),
             blockAds: Boolean(raw?.blockAds),
             removeOverdue: Boolean(raw?.removeOverdue),
         };
@@ -97,8 +94,20 @@
         return String(value || '').replace(/\s+/g, ' ').trim();
     }
 
+    // Элементы окна оценки скрыты от пользователя, но автоматизация должна
+    // видеть их как доступные для кликов.
+    function isEvaluationElement(el) {
+        const content = el?.closest?.('.modal-content');
+        return Boolean(
+            content
+            && content.querySelector('.rating-block')
+            && content.querySelector('.confirm-evaluation')
+        );
+    }
+
     function isVisible(el) {
         if (!el || !el.isConnected) return false;
+        if (isEvaluationElement(el)) return true;
 
         const style = window.getComputedStyle(el);
         if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
@@ -124,13 +133,19 @@
             display: none !important;
         }
 
-        /* Блокировка окна оценки занятия. */
-        body.top-skip-block-rating .modal:has(.rating-block),
-        body.top-skip-block-rating .modal-content:has(.rating-block) {
+        /* Окно оценки занятия скрыто всегда, но остаётся в DOM для автоматизации. */
+        .top-skip-hidden-evaluation,
+        .top-skip-hidden-evaluation .modal-content {
             display: none !important;
         }
 
-        body.top-skip-block-rating:has(.modal .rating-block) .modal-backdrop {
+        .modal:has(.rating-block),
+        .modal-content:has(.rating-block) {
+            display: none !important;
+        }
+
+        body.top-skip-has-evaluation .modal-backdrop,
+        body:has(.modal .rating-block) .modal-backdrop {
             display: none !important;
         }
 
@@ -165,9 +180,27 @@
         const body = document.body;
         if (!body) return;
 
-        body.classList.toggle('top-skip-block-rating', Boolean(settings.blockLessonRating));
         body.classList.toggle('top-skip-block-ads', Boolean(settings.blockAds));
         body.classList.toggle('top-skip-remove-overdue', Boolean(settings.removeOverdue));
+
+        // Окно оценки скрываем всегда. Автоматизация продолжает работать
+        // с его DOM через isEvaluationElement().
+        let hasEvaluation = false;
+
+        for (const content of document.querySelectorAll('.modal-content')) {
+            const isEvaluation = Boolean(content.querySelector('.rating-block'));
+
+            content.classList.toggle('top-skip-hidden-evaluation', isEvaluation);
+            if (isEvaluation) hasEvaluation = true;
+        }
+
+        for (const modal of document.querySelectorAll('.modal')) {
+            const isEvaluation = Boolean(modal.querySelector('.rating-block'));
+
+            modal.classList.toggle('top-skip-hidden-evaluation', isEvaluation);
+        }
+
+        body.classList.toggle('top-skip-has-evaluation', hasEvaluation);
 
         for (const item of document.querySelectorAll('.homework-item')) {
             let overdue = false;
@@ -475,32 +508,6 @@
         return false;
     }
 
-    // === Блокировка окна оценки занятия ===
-
-    function findEvaluationModal() {
-        for (const modal of document.querySelectorAll('.modal-content')) {
-            if (modal.closest('.announcement-modal')) continue;
-            if (!modal.querySelector('.rating-block')) continue;
-            if (!modal.querySelector('.confirm-evaluation')) continue;
-            return modal;
-        }
-
-        return null;
-    }
-
-    function closeEvaluationModal(modal = findEvaluationModal()) {
-        if (!modal) return false;
-
-        const closeButton = modal.querySelector('.close-btn');
-        if (!closeButton) return false;
-        if (closingEvaluations.has(closeButton)) return false;
-
-        closingEvaluations.add(closeButton);
-        mouseClick(closeButton);
-        console.log('[Top Skip] Окно оценки занятия закрыто');
-        return true;
-    }
-
     // === Поиск неоценённой формы ===
 
     function findPendingRating(scope = document) {
@@ -575,7 +582,7 @@
     // === Основной сценарий оценки урока ===
 
     function automationAllowed() {
-        return settings.enabled && !settings.blockLessonRating;
+        return settings.enabled;
     }
 
     async function waitForFormClose(ratingBlock, root) {
@@ -593,10 +600,7 @@
 
         // У формы может быть два шага: оценка преподавателя, затем урока.
         while (steps < 4) {
-            if (!automationAllowed()) {
-                closeEvaluationModal();
-                return;
-            }
+            if (!automationAllowed()) return;
 
             const { ratingBlock, ratingRoot, root } = current;
 
@@ -608,10 +612,7 @@
 
             handledRatings.add(ratingRoot);
 
-            if (!automationAllowed()) {
-                closeEvaluationModal();
-                return;
-            }
+            if (!automationAllowed()) return;
 
             // 2. Комментарий на текущем шаге.
             if (settings.addComment && settings.commentText.trim()) {
@@ -630,10 +631,7 @@
                 }
             }
 
-            if (!automationAllowed()) {
-                closeEvaluationModal();
-                return;
-            }
+            if (!automationAllowed()) return;
 
             // 3. Определяем действие на текущем шаге.
             const sendButton = findButton(root, 'Отправить');
@@ -672,10 +670,7 @@
                 return;
             }
 
-            if (!automationAllowed()) {
-                closeEvaluationModal();
-                return;
-            }
+            if (!automationAllowed()) return;
 
             // 4. Ждём следующий шаг: новую неоценённую форму или «Отправить».
             const nextState = await waitFor(() => {
@@ -696,10 +691,7 @@
                 throw new Error('Следующий шаг формы оценки не появился');
             }
 
-            if (!automationAllowed()) {
-                closeEvaluationModal();
-                return;
-            }
+            if (!automationAllowed()) return;
 
             if (nextState.type === 'send') {
                 mouseClick(nextState.button);
@@ -733,12 +725,6 @@
         // Окно объявлений закрываем всегда, при любых настройках.
         if (closeAnnouncementModal()) return;
 
-        // Блокировка окна оценки занятия тоже работает независимо.
-        if (settings.blockLessonRating) {
-            const evaluationModal = findEvaluationModal();
-            if (evaluationModal && closeEvaluationModal(evaluationModal)) return;
-        }
-
         if (!settings.enabled || processing) return;
 
         // Домашнее задание имеет приоритет и не отправляется автоматически.
@@ -747,9 +733,6 @@
             fillHomework(homework);
             return;
         }
-
-        // При включённой блокировке не запускаем автоматическую оценку.
-        if (settings.blockLessonRating) return;
 
         const pending = findPendingRating();
         if (!pending) return;
